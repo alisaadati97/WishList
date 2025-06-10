@@ -11,6 +11,7 @@ export default function Home() {
     <div className="flex flex-col h-screen bg-[#F5F5F5]">
       <header className="flex justify-between items-center p-4 bg-white border-b">
         <h1 className="text-xl font-bold">WishApp</h1>
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <PointsDisplay points={25} />
       </header>
 

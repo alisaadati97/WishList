@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { CalendarIcon, Check, Share2, Sparkles } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
+import { getTelegramUser, getTelegramInitData, isTelegramMiniApp, initializeTelegramApp } from "@/lib/telegram"
 
 // =============================================================================
 // API INTEGRATION - UNCOMMENT WHEN BACKEND IS READY
@@ -183,13 +185,54 @@ const mockTasks = [
 ]
 
 export function Profile() {
+  const [telegramUser, setTelegramUser] = useState<any>(null)
+  const [telegramInitData, setTelegramInitData] = useState<any>(null)
+  const [isTelegramApp, setIsTelegramApp] = useState(false)
+
+  useEffect(() => {
+    // Initialize Telegram Mini App
+    initializeTelegramApp()
+
+    // Check if running in Telegram
+    const isInTelegram = isTelegramMiniApp()
+    setIsTelegramApp(isInTelegram)
+
+    if (isInTelegram) {
+      // Get Telegram user data
+      const user = getTelegramUser()
+      const initData = getTelegramInitData()
+
+      setTelegramUser(user)
+      setTelegramInitData(initData)
+
+      console.log("Telegram User:", user)
+      console.log("Telegram Init Data:", initData)
+    }
+  }, [])
+
   const completedTasks = mockTasks.filter((task) => task.completed).length
   const totalTasks = mockTasks.length
   const progressPercentage = (completedTasks / totalTasks) * 100
 
+  // Use Telegram data if available, otherwise use mock data
+  const displayName = telegramUser
+    ? `${telegramUser.first_name}${telegramUser.last_name ? " " + telegramUser.last_name : ""}`
+    : "John Doe"
+
+  const displayUsername = telegramUser?.username ? `@${telegramUser.username}` : "@johndoe"
+
+  const displayAvatar = telegramUser?.photo_url || "/placeholder.svg?height=80&width=80"
+
   return (
     <div className="p-4 space-y-4">
-      <h2 className="text-xl font-bold">Profile</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold">Profile</h2>
+        {isTelegramApp && (
+          <Badge variant="outline" className="bg-blue-50 text-blue-700">
+            Telegram Mini App
+          </Badge>
+        )}
+      </div>
 
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -203,24 +246,70 @@ export function Profile() {
         </TabsList>
 
         <TabsContent value="profile" className="mt-4 space-y-4">
+          {/* Telegram Info Card - Only show if in Telegram */}
+          {isTelegramApp && telegramUser && (
+            <Card className="border-blue-200 bg-blue-50/50">
+              <CardHeader>
+                <CardTitle className="text-blue-800">Telegram Account</CardTitle>
+                <CardDescription>Information from your Telegram account</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <Label className="text-blue-700">Telegram ID</Label>
+                    <p className="font-mono">{telegramUser.id}</p>
+                  </div>
+                  <div>
+                    <Label className="text-blue-700">Language</Label>
+                    <p>{telegramUser.language_code?.toUpperCase() || "N/A"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-blue-700">Premium</Label>
+                    <p>{telegramUser.is_premium ? "Yes" : "No"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-blue-700">Auth Date</Label>
+                    <p>{new Date(telegramInitData?.auth_date * 1000).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Your Profile</CardTitle>
-              <CardDescription>Manage your personal information</CardDescription>
+              <CardDescription>
+                {isTelegramApp ? "Your profile information from Telegram" : "Manage your personal information"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
                 <Avatar className="h-20 w-20">
-                  <AvatarImage src="/placeholder.svg?height=80&width=80" alt="Profile" />
-                  <AvatarFallback>JD</AvatarFallback>
+                  <AvatarImage src={displayAvatar || "/placeholder.svg"} alt="Profile" />
+                  <AvatarFallback>
+                    {displayName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")}
+                  </AvatarFallback>
                 </Avatar>
-                <Button size="sm">Change Photo</Button>
+                {!isTelegramApp && <Button size="sm">Change Photo</Button>}
+                {isTelegramApp && <div className="text-sm text-muted-foreground">Photo synced from Telegram</div>}
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input id="name" value={displayName} disabled={isTelegramApp} placeholder="Enter your full name" />
+                {isTelegramApp && <p className="text-xs text-muted-foreground">Name is from your Telegram account</p>}
               </div>
 
               <div className="grid gap-2">
                 <Label htmlFor="username">Username</Label>
-                <Input id="username" value="@johndoe" disabled />
-                <p className="text-xs text-muted-foreground">Username is from your Telegram account</p>
+                <Input id="username" value={displayUsername} disabled />
+                <p className="text-xs text-muted-foreground">
+                  {isTelegramApp ? "Username is from your Telegram account" : "Username is from your Telegram account"}
+                </p>
               </div>
 
               <div className="grid gap-2">
@@ -239,7 +328,7 @@ export function Profile() {
               <div className="grid gap-2">
                 <Label>Referral Link</Label>
                 <div className="flex gap-2">
-                  <Input value="https://wishapp.tg/ref/johndoe" readOnly />
+                  <Input value={`https://wishapp.tg/ref/${telegramUser?.username || "johndoe"}`} readOnly />
                   <Button size="sm" variant="outline">
                     <Share2 className="h-4 w-4 mr-1" />
                     Share
